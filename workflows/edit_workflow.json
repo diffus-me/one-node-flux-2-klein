@@ -1,7 +1,7 @@
 {
   "FK:155": {
     "inputs": {
-      "clip_name": "qwen_3_8b_fp8mixed.safetensors",
+      "clip_name": "qwen_3_4b.safetensors",
       "type": "flux2",
       "device": "default"
     },
@@ -17,7 +17,7 @@
   },
   "FK:165": {
     "inputs": {
-      "unet_name": "flux-2-klein-9b.safetensors",
+      "unet_name": "flux/flux-2-klein-4b.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",

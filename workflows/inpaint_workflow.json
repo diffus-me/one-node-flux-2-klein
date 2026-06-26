@@ -2,7 +2,7 @@
   "FKI:194": {
     "class_type": "UNETLoader",
     "inputs": {
-      "unet_name": "flux-2-klein-9b-kv.safetensors",
+      "unet_name": "flux/flux-2-klein-4b.safetensors",
       "weight_dtype": "default"
     },
     "_meta": { "title": "UNETLoader" }
@@ -17,7 +17,7 @@
   "FKI:195": {
     "class_type": "CLIPLoader",
     "inputs": {
-      "clip_name": "qwen_3_8b_fp8mixed.safetensors",
+      "clip_name": "qwen_3_4b.safetensors",
       "type": "flux2",
       "device": "default"
     },

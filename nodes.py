@@ -5,6 +5,8 @@ import time
 import subprocess
 import shutil
 from pathlib import Path
+
+import execution_context
 import folder_paths
 from aiohttp import web
 from server import PromptServer
@@ -13,17 +15,29 @@ NODE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(NODE_DIR, 'config.json')
 SUBFOLDER = "one-node-flux-2-klein"
 
+
 # User config lives outside the node folder so it survives reinstalls / git pull.
-USER_CONFIG_DIR = os.path.join(folder_paths.get_user_directory(), "default", SUBFOLDER)
-USER_CONFIG_PATH = os.path.join(USER_CONFIG_DIR, "config.json")
+# USER_CONFIG_DIR = os.path.join(folder_paths.get_user_directory(), "default", SUBFOLDER)
+# USER_CONFIG_PATH = os.path.join(USER_CONFIG_DIR, "config.json")
+
+def _user_config_dir(exec_context: execution_context.ExecutionContext):
+    return os.path.join(
+        folder_paths.get_user_directory(user_hash=exec_context.user_hash),
+        "default",
+        SUBFOLDER
+    )
 
 
-def _favorites_path():
-    return os.path.join(NODE_DIR, "favorites.json")
+def _user_config_path(exec_context: execution_context.ExecutionContext) -> str:
+    return os.path.join(_user_config_dir(exec_context), "config.json")
 
 
-def _load_favorites():
-    path = _favorites_path()
+def _favorites_path(exec_context: execution_context.ExecutionContext):
+    return os.path.join(_user_config_dir(exec_context), "favorites.json")
+
+
+def _load_favorites(exec_context: execution_context.ExecutionContext):
+    path = _favorites_path(exec_context)
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -34,7 +48,7 @@ def _load_favorites():
     # First run: build index by scanning existing sidecar JSONs (both locations)
     favs = set()
     try:
-        subf_dir = os.path.join(_get_output_dir(), SUBFOLDER)
+        subf_dir = os.path.join(_get_output_dir(exec_context=exec_context), SUBFOLDER)
         if os.path.isdir(subf_dir):
             scan_dirs = [subf_dir, os.path.join(subf_dir, "metadata")]
             for d in scan_dirs:
@@ -50,30 +64,29 @@ def _load_favorites():
                     except Exception:
                         pass
         if favs:
-            _save_favorites(favs)
+            _save_favorites(exec_context, favs)
     except Exception:
         pass
     return favs
 
 
-def _save_favorites(favset):
-    path = _favorites_path()
+def _save_favorites(exec_context: execution_context.ExecutionContext, favset):
+    path = _favorites_path(exec_context)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(sorted(favset), f, ensure_ascii=False, indent=2)
 
 
-def _favorites_add(filename):
-    favs = _load_favorites()
+def _favorites_add(exec_context: execution_context.ExecutionContext, filename):
+    favs = _load_favorites(exec_context)
     favs.add(filename)
-    _save_favorites(favs)
+    _save_favorites(exec_context, favs)
 
 
-def _favorites_remove(filename):
-    favs = _load_favorites()
+def _favorites_remove(exec_context: execution_context.ExecutionContext, filename):
+    favs = _load_favorites(exec_context)
     favs.discard(filename)
-    _save_favorites(favs)
-
+    _save_favorites(exec_context, favs)
 
 
 def _safe_resolve_output_path(output_dir, subfolder="", filename=""):
@@ -91,8 +104,8 @@ def _safe_resolve_output_path(output_dir, subfolder="", filename=""):
     return str(target)
 
 
-def _safe_resolve_input_path(filename=""):
-    base = Path(folder_paths.get_input_directory()).resolve()
+def _safe_resolve_input_path(exec_context: execution_context.ExecutionContext, filename=""):
+    base = Path(folder_paths.get_input_directory(user_hash=exec_context.user_hash)).resolve()
     target = (base / filename).resolve()
     try:
         target.relative_to(base)
@@ -114,10 +127,10 @@ def _load_builtin_config():
         return {}
 
 
-def _load_user_config():
+def _load_user_config(exec_context: execution_context.ExecutionContext):
     """User edits, stored outside the node folder so they survive reinstalls."""
     try:
-        with open(USER_CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(_user_config_path(exec_context), "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}
@@ -152,9 +165,9 @@ def _merge_discover(builtin, user):
     return out
 
 
-def _load_config():
+def _load_config(exec_context: execution_context.ExecutionContext):
     builtin = _load_builtin_config()
-    user = _load_user_config()
+    user = _load_user_config(exec_context=exec_context)
     merged = dict(builtin)
     merged.update(user)  # user wins for simple keys
     # discover_prompts gets a deep merge so new built-in presets stay visible
@@ -187,28 +200,28 @@ def _diff_discover(builtin, incoming):
     return diff
 
 
-def _save_config(patch):
+def _save_config(exec_context: execution_context.ExecutionContext, patch):
     """Write user edits to the user folder only. Repo config.json is never touched."""
-    user = _load_user_config()
+    user = _load_user_config(exec_context=exec_context)
     builtin = _load_builtin_config()
     for k, v in patch.items():
         if k == "discover_prompts":
             user[k] = _diff_discover(builtin.get("discover_prompts", {}), v)
         else:
             user[k] = v
-    os.makedirs(USER_CONFIG_DIR, exist_ok=True)
-    with open(USER_CONFIG_PATH, "w", encoding="utf-8") as f:
+    os.makedirs(_user_config_dir(exec_context), exist_ok=True)
+    with open(_user_config_path(exec_context), "w", encoding="utf-8") as f:
         json.dump(user, f, ensure_ascii=False, indent=2)
 
 
-def _get_output_dir():
+def _get_output_dir(exec_context: execution_context.ExecutionContext):
     try:
-        return str(Path(folder_paths.get_output_directory()).resolve())
+        return str(Path(folder_paths.get_output_directory(user_hash=exec_context.user_hash)).resolve())
     except Exception:
-        return str(Path(os.path.join(os.path.dirname(NODE_DIR), "output")).resolve())
+        return str(Path(os.path.join(os.path.dirname(_user_config_path(exec_context)), "output")).resolve())
 
 
-def _find_ffmpeg():
+def _find_ffmpeg(exec_context: execution_context.ExecutionContext):
     try:
         from custom_nodes.ComfyUI_VideoHelperSuite.videohelpersuite.utils import ffmpeg_path
         if os.path.isfile(ffmpeg_path):
@@ -223,7 +236,7 @@ def _find_ffmpeg():
     except Exception:
         pass
     exe = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
-    root = NODE_DIR
+    root = _user_config_path(exec_context)
     for _ in range(6):
         if os.path.isdir(os.path.join(root, "custom_nodes")):
             break
@@ -244,14 +257,8 @@ def _find_ffmpeg():
     return None
 
 
-_ffmpeg_path = None
-
-
-def _ff():
-    global _ffmpeg_path
-    if _ffmpeg_path is None:
-        _ffmpeg_path = _find_ffmpeg() or ""
-    return _ffmpeg_path or None
+def _ffmpeg_path(exec_context: execution_context.ExecutionContext):
+    return _find_ffmpeg(exec_context=exec_context) or ""
 
 
 def _meta_dir(image_path):
@@ -271,10 +278,10 @@ def _meta_path_legacy(image_path):
     return base + ".json"
 
 
-def _migrate_meta_sidecars():
+def _migrate_meta_sidecars(exec_context: execution_context.ExecutionContext):
     """One-time migration: move *.json sidecars next to PNGs into metadata/ subdir."""
     try:
-        subf_dir = os.path.join(_get_output_dir(), SUBFOLDER)
+        subf_dir = os.path.join(_get_output_dir(exec_context=exec_context), SUBFOLDER)
         if not os.path.isdir(subf_dir):
             return
         meta_dir = os.path.join(subf_dir, "metadata")
@@ -325,14 +332,14 @@ def _png_embed_meta(png_path, meta_dict):
         i = 8
         while i < len(data) - 4:
             try:
-                clen = struct.unpack('>I', data[i:i+4])[0]
-                ctype = data[i+4:i+8]
+                clen = struct.unpack('>I', data[i:i + 4])[0]
+                ctype = data[i + 4:i + 8]
                 if ctype == b'tEXt':
-                    chunk_data = data[i+8:i+8+clen]
+                    chunk_data = data[i + 8:i + 8 + clen]
                     if chunk_data.startswith(b'Comment\x00'):
                         i += 12 + clen
                         continue
-                new_body += data[i:i+12+clen]
+                new_body += data[i:i + 12 + clen]
                 if ctype == b'IEND':
                     break
                 i += 12 + clen
@@ -346,9 +353,9 @@ def _png_embed_meta(png_path, meta_dict):
         inserted = False
         while j < len(new_body):
             try:
-                clen = struct.unpack('>I', bytes(new_body[j:j+4]))[0]
-                ctype = new_body[j+4:j+8]
-                final += new_body[j:j+12+clen]
+                clen = struct.unpack('>I', bytes(new_body[j:j + 4]))[0]
+                ctype = new_body[j + 4:j + 8]
+                final += new_body[j:j + 12 + clen]
                 j += 12 + clen
                 if not inserted and ctype == b'IHDR':
                     final += chunk
@@ -396,10 +403,10 @@ def _png_read_meta(png_path):
         i = 8
         while i < len(data) - 4:
             try:
-                clen = struct.unpack('>I', data[i:i+4])[0]
-                ctype = data[i+4:i+8]
+                clen = struct.unpack('>I', data[i:i + 4])[0]
+                ctype = data[i + 4:i + 8]
                 if ctype == b'tEXt':
-                    chunk_data = data[i+8:i+8+clen]
+                    chunk_data = data[i + 8:i + 8 + clen]
                     if chunk_data.startswith(b'Comment\x00'):
                         raw = chunk_data[8:].decode('utf-8', errors='replace')
                         parsed = json.loads(raw)
@@ -521,7 +528,8 @@ async def get_bgremoval_models(request):
 
 @PromptServer.instance.routes.get("/flux_klein/config")
 async def get_config(request):
-    cfg = _load_config()
+    exec_context = execution_context.ExecutionContext(request)
+    cfg = _load_config(exec_context=exec_context)
     return web.json_response({
         "dummy": cfg.get("dummy", ""),
         "lora_triggers_custom": cfg.get("lora_triggers_custom", {}),
@@ -537,7 +545,8 @@ async def save_config_route(request):
         patch = await request.json()
         if not isinstance(patch, dict):
             return web.json_response({"ok": False, "error": "invalid payload"}, status=400)
-        _save_config(patch)
+        exec_context = execution_context.ExecutionContext(request)
+        _save_config(exec_context, patch)
         return web.json_response({"ok": True})
     except Exception as e:
         print(f"[FluxKlein] config save error: {e}")
@@ -546,7 +555,8 @@ async def save_config_route(request):
 
 @PromptServer.instance.routes.get("/flux_klein/gallery")
 async def get_gallery(request):
-    output_dir = _get_output_dir()
+    exec_context = execution_context.ExecutionContext(request)
+    output_dir = _get_output_dir(exec_context=exec_context)
     try:
         offset = max(0, int(request.query.get("offset", 0)))
     except Exception:
@@ -560,13 +570,13 @@ async def get_gallery(request):
     try:
         search = _safe_resolve_output_path(output_dir, subf) if subf else output_dir
     except ValueError:
-        return web.json_response({"images": [], "total": 0, "offset": offset, "limit": limit, "error": "invalid subfolder"}, status=400)
+        return web.json_response(
+            {"images": [], "total": 0, "offset": offset, "limit": limit, "error": "invalid subfolder"}, status=400)
 
     assets_dir = os.path.normpath(_safe_resolve_output_path(output_dir, os.path.join(SUBFOLDER, "assets")))
-
     if favonly:
         # Fast path: read favorites index, resolve to existing files sorted by mtime
-        fav_names = _load_favorites()
+        fav_names = _load_favorites(exec_context=exec_context)
         subf_dir = os.path.normpath(_safe_resolve_output_path(output_dir, SUBFOLDER))
         unique = []
         missing = set()
@@ -577,7 +587,7 @@ async def get_gallery(request):
             else:
                 missing.add(name)
         if missing:
-            _save_favorites(fav_names - missing)
+            _save_favorites(exec_context, fav_names - missing)
         unique.sort(key=os.path.getmtime, reverse=True)
     else:
         search_norm = os.path.normpath(search)
@@ -585,10 +595,11 @@ async def get_gallery(request):
         unique = []
         if os.path.isdir(search):
             pngs = glob.glob(os.path.join(search, "**", "*.png"), recursive=True)
-            filtered = [p for p in pngs if not exclude_assets or not os.path.normpath(p).startswith(assets_dir + os.sep)]
+            filtered = [p for p in pngs if
+                        not exclude_assets or not os.path.normpath(p).startswith(assets_dir + os.sep)]
             unique = sorted(set(filtered), key=os.path.getmtime, reverse=True)
 
-    fav_set = _load_favorites() if not favonly else fav_names
+    fav_set = _load_favorites(exec_context=exec_context) if not favonly else fav_names
     images = []
     for f in unique[offset:offset + limit]:
         rel = os.path.relpath(os.path.dirname(f), output_dir)
@@ -613,7 +624,8 @@ async def save_meta(request):
         meta = data.get("meta", {})
         if not filename:
             return web.json_response({"ok": False, "error": "no filename"})
-        output_dir = _get_output_dir()
+        exec_context = execution_context.ExecutionContext(request)
+        output_dir = _get_output_dir(exec_context=exec_context)
         try:
             vpath = _safe_resolve_output_path(output_dir, subfolder, filename)
         except ValueError:
@@ -636,7 +648,8 @@ async def update_meta(request):
         patch = data.get("patch", {})
         if not filename or not isinstance(patch, dict):
             return web.json_response({"ok": False, "error": "bad request"})
-        output_dir = _get_output_dir()
+        exec_context = execution_context.ExecutionContext(request)
+        output_dir = _get_output_dir(exec_context=exec_context)
         try:
             vpath = _safe_resolve_output_path(output_dir, subfolder, filename)
         except ValueError:
@@ -646,9 +659,9 @@ async def update_meta(request):
         ok = _write_json_meta(vpath, existing)
         if "favorite" in patch:
             if patch["favorite"] is True:
-                _favorites_add(filename)
+                _favorites_add(exec_context, filename)
             else:
-                _favorites_remove(filename)
+                _favorites_remove(exec_context, filename)
         return web.json_response({"ok": ok})
     except Exception as e:
         print(f"[FluxKlein] update_meta error: {e}")
@@ -659,9 +672,10 @@ async def update_meta(request):
 async def get_meta(request):
     filename = request.query.get("filename", "")
     subfolder = request.query.get("subfolder", "")
+    exec_context = execution_context.ExecutionContext(request)
     if not filename:
         return web.json_response({"ok": False, "error": "no filename"})
-    output_dir = _get_output_dir()
+    output_dir = _get_output_dir(exec_context=exec_context)
     try:
         vpath = _safe_resolve_output_path(output_dir, subfolder, filename)
     except ValueError:
@@ -680,9 +694,10 @@ async def open_folder(request):
         data = await request.json()
         filename = data.get("filename", "")
         subfolder = data.get("subfolder", "")
+        exec_context = execution_context.ExecutionContext(request)
         if not filename:
             return web.json_response({"ok": False, "error": "no filename"})
-        output_dir = _get_output_dir()
+        output_dir = _get_output_dir(exec_context=exec_context)
         try:
             vpath = _safe_resolve_output_path(output_dir, subfolder, filename)
         except ValueError:
@@ -711,7 +726,9 @@ async def delete_image(request):
         subfolder = data.get("subfolder", "")
         if not filename:
             return web.json_response({"ok": False, "error": "filename required"}, status=400)
-        output_dir = _get_output_dir()
+        exec_context = execution_context.ExecutionContext(request)
+        output_dir = _get_output_dir(exec_context=exec_context)
+        exec_context = execution_context.ExecutionContext(request)
         try:
             img_path = _safe_resolve_output_path(output_dir, subfolder, filename)
         except ValueError:
@@ -725,7 +742,7 @@ async def delete_image(request):
                     os.remove(json_path)
                 except Exception:
                     pass
-        _favorites_remove(filename)
+        _favorites_remove(exec_context, filename)
         return web.json_response({"ok": True})
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)})
@@ -770,7 +787,8 @@ async def get_models(request):
     except Exception:
         try:
             import folder_paths as fp
-            diff = _scan_path(os.path.join(os.path.dirname(getattr(fp, "models_dir", "")), "models", "diffusion_models"))
+            diff = _scan_path(
+                os.path.join(os.path.dirname(getattr(fp, "models_dir", "")), "models", "diffusion_models"))
         except Exception:
             diff = ["none"]
 
@@ -879,24 +897,25 @@ def _extract_trigger_words(header):
 
 @PromptServer.instance.routes.get("/flux_klein/lora_triggers")
 async def lora_triggers(request):
-    lora_name = request.query.get("name", "")
-    if not lora_name:
-        return web.json_response({"ok": False, "error": "no name"}, status=400)
-    try:
-        bases = folder_paths.get_folder_paths("loras")
-    except Exception:
-        return web.json_response({"ok": False, "error": "cannot resolve loras folder"}, status=500)
-    for base in bases:
-        candidate = os.path.normpath(os.path.join(base, lora_name))
-        # Path traversal guard
-        try:
-            Path(candidate).resolve().relative_to(Path(base).resolve())
-        except Exception:
-            continue
-        if os.path.isfile(candidate) and candidate.lower().endswith(".safetensors"):
-            header = _read_safetensors_header(candidate)
-            triggers = _extract_trigger_words(header)
-            return web.json_response({"ok": True, "triggers": triggers, "name": lora_name})
+    # lora_name = request.query.get("name", "")
+    # if not lora_name:
+    #     return web.json_response({"ok": False, "error": "no name"}, status=400)
+    # try:
+    #     bases = folder_paths.get_folder_paths("loras")
+    # except Exception:
+    #     return web.json_response({"ok": False, "error": "cannot resolve loras folder"}, status=500)
+    # for base in bases:
+    #     candidate = os.path.normpath(os.path.join(base, lora_name))
+    #     # Path traversal guard
+    #     try:
+    #         Path(candidate).resolve().relative_to(Path(base).resolve())
+    #     except Exception:
+    #         continue
+    #     if os.path.isfile(candidate) and candidate.lower().endswith(".safetensors"):
+    #         header = _read_safetensors_header(candidate)
+    #         triggers = _extract_trigger_words(header)
+    #         return web.json_response({"ok": True, "triggers": triggers, "name": lora_name})
+    # return web.json_response({"ok": False, "error": "file not found", "triggers": []})
     return web.json_response({"ok": False, "error": "file not found", "triggers": []})
 
 
@@ -904,6 +923,7 @@ class FluxKleinOneNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {}, "hidden": {"unique_id": "UNIQUE_ID"}}
+
     RETURN_TYPES = ()
     FUNCTION = "noop"
     CATEGORY = "One Node"
@@ -920,4 +940,4 @@ class FluxKleinOneNode:
 NODE_CLASS_MAPPINGS = {"FluxKleinOneNode": FluxKleinOneNode}
 NODE_DISPLAY_NAME_MAPPINGS = {"FluxKleinOneNode": "One Node · FLUX.2 [klein]"}
 
-_migrate_meta_sidecars()
+# _migrate_meta_sidecars()

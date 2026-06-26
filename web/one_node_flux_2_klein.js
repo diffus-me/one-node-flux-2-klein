@@ -527,7 +527,7 @@ app.registerExtension({
       if(!self._fk_S){
         self._fk_S={
           // Settings
-          modelVariant: saved.modelVariant||"9b",      // "9b" | "9b-kv"
+          modelVariant: saved.modelVariant||"4b",      // "4b"
           model:        saved.model||"",
           textEncoder:  saved.textEncoder||"",
           vae:          saved.vae||"",
@@ -864,7 +864,7 @@ app.registerExtension({
       // Row 1: Model / Text Encoder / VAE
       const modGrid=mk("div",{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px",marginBottom:"4px"});
       const modelF  =mkModDD("Model",         "/models/diffusion_models", S.model,       v=>{S.model=v;if(typeof _kvUpdateNote==="function")_kvUpdateNote();},"klein");
-      const teF     =mkModDD("Text Encoder",  "/models/text_encoders",   S.textEncoder, v=>S.textEncoder=v, "qwen");
+      const teF     =mkModDD("Text Encoder",  "/models/text_encoders",   S.textEncoder, v=>S.textEncoder=v, "qwen_3_4b");
       const vaeF    =mkModDD("VAE",           "/models/vae",             S.vae,         v=>S.vae=v,         "flux2");
       modGrid.append(modelF.wrap,teF.wrap,vaeF.wrap);
       // KV info note — shown below Model dropdown when selected model name contains "kv"
@@ -1165,7 +1165,7 @@ app.registerExtension({
         _mkModelRow("Diffusion Model","models/diffusion_models/",[
           {name:"flux-2 klein 9b distilled",url:"https://huggingface.co/black-forest-labs/FLUX.2-klein-9B/resolve/main/flux-2-klein-9b.safetensors"},
           {name:"flux-2 klein 9b fp8 distilled",url:"https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors"},
-          {name:"flux-2 klein 9b kv",url:"https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-kv/resolve/main/flux-2-klein-9b-kv.safetensors"},
+          {name:"flux-2 klein 9b kv",url:"https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-kv/resolve/main/flux/flux-2-klein-4b.safetensors"},
           {name:"flux-2 klein 9b kv fp8",url:"https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-kv-fp8/resolve/main/flux-2-klein-9b-kv-fp8.safetensors"},
           {name:"flux-2 klein 4b distilled",url:"https://huggingface.co/black-forest-labs/FLUX.2-klein-4B/resolve/main/flux-2-klein-4b.safetensors"},
           {name:"flux-2 klein 4b fp8 distilled",url:"https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/main/flux-2-klein-4b-fp8.safetensors"},
@@ -8044,9 +8044,9 @@ width:"34px",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:"4px",
             crop:"FKI:209", sampler:"FKI:163", save:"FKI:203",
           };
           if(extModel){ delete prompt[WFI.model]; if(useKV) prompt[WFI.kv].inputs.model=extModel; }
-          else set(WFI.model,"unet_name",S.model||"flux-2-klein-9b-kv.safetensors");
+          else set(WFI.model,"unet_name",S.model||"flux/flux-2-klein-4b.safetensors");
           if(extClip){ delete prompt[WFI.textEnc]; prompt[WFI.promptPos].inputs.clip=extClip; }
-          else set(WFI.textEnc,"clip_name",S.textEncoder||"qwen_3_8b_fp8mixed.safetensors");
+          else set(WFI.textEnc,"clip_name",S.textEncoder||"qwen_3_4b.safetensors");
           if(extVae){ delete prompt[WFI.vae]; prompt["FKI:206"].inputs.vae=extVae; prompt["FKI:210"].inputs.vae=extVae; prompt["FKI:164"].inputs.vae=extVae; }
           else set(WFI.vae,"vae_name",S.vae||"flux2-vae.safetensors");
           set(WFI.promptPos,"text",      _effectivePrompt);
@@ -8136,9 +8136,9 @@ width:"34px",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:"4px",
             sampler:"FKO:163", save:"FKO:203",
           };
           if(extModel){ delete prompt[WFO.model]; if(useKV) prompt[WFO.kv].inputs.model=extModel; }
-          else set(WFO.model,"unet_name",S.model||"flux-2-klein-9b-kv.safetensors");
+          else set(WFO.model,"unet_name",S.model||"flux/flux-2-klein-4b.safetensors");
           if(extClip){ delete prompt[WFO.textEnc]; prompt[WFO.promptPos].inputs.clip=extClip; }
-          else set(WFO.textEnc,"clip_name",S.textEncoder||"qwen_3_8b_fp8mixed.safetensors");
+          else set(WFO.textEnc,"clip_name",S.textEncoder||"qwen_3_4b.safetensors");
           if(extVae){ delete prompt[WFO.vae]; prompt["FKO:210"].inputs.vae=extVae; prompt["FKO:164"].inputs.vae=extVae; }
           else set(WFO.vae,"vae_name",S.vae||"flux2-vae.safetensors");
           set(WFO.promptPos,"text",       _effectivePrompt);
@@ -8183,9 +8183,9 @@ width:"34px",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:"4px",
             sampling:"FKF:239", sampler:"FKF:228", save:"FKF:232",
           };
           if(extModel){ delete prompt[WFF.model]; prompt[WFF.lora].inputs.model=extModel; }
-          else set(WFF.model,"unet_name",S.model||"flux-2-klein-9b.safetensors");
+          else set(WFF.model,"unet_name",S.model||"fflux/flux-2-klein-4b.safetensors");
           if(extClip){ delete prompt[WFF.textEnc]; prompt["FKF:227"].inputs.clip=extClip; prompt["FKF:229"].inputs.clip=extClip; }
-          else set(WFF.textEnc,"clip_name",S.textEncoder||"qwen_3_8b_fp8mixed.safetensors");
+          else set(WFF.textEnc,"clip_name",S.textEncoder||"qwen_3_4b.safetensors");
           if(extVae){ delete prompt[WFF.vae]; prompt["FKF:171t"].inputs.vae=extVae; prompt["FKF:174s"].inputs.vae=extVae; prompt["FKF:224"].inputs.vae=extVae; }
           else set(WFF.vae,"vae_name",S.vae||"flux2-vae.safetensors");
           set(WFF.target, "image",          S.fsTarget||"placeholder.png");
@@ -8233,9 +8233,9 @@ width:"34px",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:"4px",
         } else if(isI2IMode){
           // ── I2I workflow patching ──────────────────────────────────────────
           if(extModel){ delete prompt["FK:165"]; }
-          else set("FK:165","unet_name",S.model||"flux-2-klein-9b.safetensors");
+          else set("FK:165","unet_name",S.model||"fflux/flux-2-klein-4b.safetensors");
           if(extClip){ delete prompt["FK:155"]; prompt["FK:166"].inputs.clip=extClip; prompt["FK:156"].inputs.clip=extClip; }
-          else set("FK:155","clip_name",S.textEncoder||"qwen_3_8b_fp8mixed.safetensors");
+          else set("FK:155","clip_name",S.textEncoder||"qwen_3_4b.safetensors");
           if(extVae){ delete prompt["FK:153"]; prompt["FKI2I:vae"].inputs.vae=extVae; prompt["FK:152"].inputs.vae=extVae; }
           else set("FK:153","vae_name",S.vae||"flux2-vae.safetensors");
           set("FK:166","text",       _effectivePrompt);
@@ -8281,9 +8281,9 @@ width:"34px",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:"4px",
         } else {
           // ── T2I / EDIT / SKETCH: original model chain ─────────────────────
           if(extModel){ delete prompt[WF.model]; }
-          else set(WF.model,"unet_name",S.model||"flux-2-klein-9b.safetensors");
+          else set(WF.model,"unet_name",S.model||"fflux/flux-2-klein-4b.safetensors");
           if(extClip){ delete prompt[WF.textEnc]; prompt[WF.promptPos].inputs.clip=extClip; prompt[WF.promptNeg].inputs.clip=extClip; }
-          else set(WF.textEnc,"clip_name",S.textEncoder||"qwen_3_8b_fp8mixed.safetensors");
+          else set(WF.textEnc,"clip_name",S.textEncoder||"qwen_3_4b.safetensors");
           if(extVae){ delete prompt[WF.vae]; if(prompt["FK:132"]) prompt["FK:132"].inputs.vae=extVae; if(prompt["FK:232"]) prompt["FK:232"].inputs.vae=extVae; prompt["FK:152"].inputs.vae=extVae; }
           else set(WF.vae,"vae_name",S.vae||"flux2-vae.safetensors");
 
@@ -9665,7 +9665,7 @@ width:"34px",background:C.bg2,border:`1px solid ${C.border}`,borderRadius:"4px",
           if(modelList.length){const v=pick(modelList,S.model,"klein");S.model=v;modelF.dd.updateItems(modelList);modelF.dd.set(v);}
           else{S.model="";modelF.dd.updateItems(["none"]);modelF.dd.set("none");}
           const teList=(d.text_encoders||[]).filter(f=>f!=="none");
-          if(teList.length){const v=pick(teList,S.textEncoder,"qwen");S.textEncoder=v;teF.dd.updateItems(teList);teF.dd.set(v);}
+          if(teList.length){const v=pick(teList,S.textEncoder,"qwen_3_4b");S.textEncoder=v;teF.dd.updateItems(teList);teF.dd.set(v);}
           else{S.textEncoder="";teF.dd.updateItems(["none"]);teF.dd.set("none");}
           const vaeList=(d.vaes||[]).filter(f=>f!=="none");
           if(vaeList.length){const v=pick(vaeList,S.vae,"flux2");S.vae=v;vaeF.dd.updateItems(vaeList);vaeF.dd.set(v);}

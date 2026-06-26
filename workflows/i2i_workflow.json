@@ -1,6 +1,6 @@
 {
   "FK:155": {
-    "inputs": { "clip_name": "qwen_3_8b_fp8mixed.safetensors", "type": "flux2", "device": "default" },
+    "inputs": { "clip_name": "qwen_3_4b.safetensors", "type": "flux2", "device": "default" },
     "class_type": "CLIPLoader",
     "_meta": { "title": "Load CLIP" }
   },
@@ -10,7 +10,7 @@
     "_meta": { "title": "Load VAE" }
   },
   "FK:165": {
-    "inputs": { "unet_name": "flux-2-klein-9b.safetensors", "weight_dtype": "default" },
+    "inputs": { "unet_name": "flux/flux-2-klein-4b.safetensors", "weight_dtype": "default" },
     "class_type": "UNETLoader",
     "_meta": { "title": "Load Diffusion Model" }
   },

@@ -1,7 +1,7 @@
 {
   "FKO:194": {
     "class_type": "UNETLoader",
-    "inputs": { "unet_name": "flux-2-klein-9b-kv.safetensors", "weight_dtype": "default" },
+    "inputs": { "unet_name": "flux/flux-2-klein-4b.safetensors", "weight_dtype": "default" },
     "_meta": { "title": "UNETLoader" }
   },
   "FKO:216": {
@@ -11,7 +11,7 @@
   },
   "FKO:195": {
     "class_type": "CLIPLoader",
-    "inputs": { "clip_name": "qwen_3_8b_fp8mixed.safetensors", "type": "flux2", "device": "default" },
+    "inputs": { "clip_name": "qwen_3_4b.safetensors", "type": "flux2", "device": "default" },
     "_meta": { "title": "CLIPLoader" }
   },
   "FKO:196": {
